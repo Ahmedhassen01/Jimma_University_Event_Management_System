@@ -5,6 +5,18 @@
 @section('content')
 @php
     $isEventManager = auth()->user()->hasRole('event-manager');
+    $isApprover = auth()->user()->hasRole('super-admin')
+        || auth()->user()->hasRole('super-administrator')
+        || auth()->user()->hasRole('administrator')
+        || auth()->user()->hasRole('admin')
+        || auth()->user()->isAdmin();
+
+    $requestImageUrl = $eventRequest->requested_image_url;
+    if (!$requestImageUrl && $eventRequest->requested_image_path) {
+        $requestImageUrl = asset('storage/' . ltrim($eventRequest->requested_image_path, '/'));
+    }
+    $heroImageUrl = $requestImageUrl ?: ($eventRequest->event?->image_url ?? null);
+    $eventTypeLabel = ucwords(str_replace('_', ' ', $eventRequest->event_type));
 @endphp
 <div class="container-fluid px-4">
     <div class="row my-4">
@@ -36,76 +48,71 @@
                         <!-- Left Column: Request Details -->
                         <div class="col-md-8">
                             <!-- Event Details -->
-                            <div class="card ju-card-light mb-4">
-                                <div class="card-header ju-card-subheader">
-                                    <h5 class="mb-0">Event Details</h5>
-                                </div>
-                                <div class="card-body">
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <h6 class="text-muted mb-2">Event Title</h6>
-                                            <p class="fs-5">{{ $eventRequest->title }}</p>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <h6 class="text-muted mb-2">Event Type</h6>
-                                            <p>
-                                                <span class="badge ju-badge">{{ ucfirst($eventRequest->event_type) }}</span>
-                                            </p>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="mb-3">
-                                        <h6 class="text-muted mb-2">Description</h6>
-                                        <p>{{ $eventRequest->description }}</p>
-                                    </div>
-                                    
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <h6 class="text-muted mb-2">Proposed Dates</h6>
-                                            <p class="mb-1">
-                                                <strong>Start:</strong> 
-                                                {{ $eventRequest->proposed_start_date->format('F d, Y') }}
-                                            </p>
-                                            <p class="mb-0">
-                                                <strong>End:</strong> 
-                                                {{ $eventRequest->proposed_end_date->format('F d, Y') }}
-                                            </p>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <h6 class="text-muted mb-2">Venue</h6>
-                                            <p class="mb-1">{{ $eventRequest->proposed_venue }}</p>
-                                            @if($eventRequest->proposed_campus)
-                                            <p class="mb-0 text-muted">{{ $eventRequest->proposed_campus }} Campus</p>
+                            <div class="card ju-card-light mb-4 overflow-hidden request-details-card">
+                                <div class="request-hero row g-0">
+                                    <div class="col-lg-5">
+                                        <div class="request-hero-media">
+                                            @if($heroImageUrl)
+                                                <img src="{{ $heroImageUrl }}"
+                                                     alt="{{ $eventRequest->title }}"
+                                                     class="request-hero-image"
+                                                     onerror="this.style.display='none'; this.parentElement.querySelector('.request-hero-placeholder').style.display='flex';">
                                             @endif
+                                            <div class="request-hero-placeholder" style="display: {{ $heroImageUrl ? 'none' : 'flex' }};">
+                                                <i class="fas fa-calendar-alt"></i>
+                                                <span>No event image yet</span>
+                                            </div>
                                         </div>
                                     </div>
-                                    
-                                    @if($eventRequest->expected_attendees)
-                                    <div class="row mt-3">
-                                        <div class="col-md-6">
-                                            <h6 class="text-muted mb-2">Expected Attendees</h6>
-                                            <p>{{ number_format($eventRequest->expected_attendees) }}</p>
-                                        </div>
-                                    </div>
-                                    @endif
-                                    
-                                    @if($eventRequest->additional_requirements_text)
-                                    <div class="mt-3">
-                                        <h6 class="text-muted mb-2">Additional Requirements</h6>
-                                        <p>{{ $eventRequest->additional_requirements_text }}</p>
-                                    </div>
-                                    @endif
+                                    <div class="col-lg-7">
+                                        <div class="request-hero-content">
+                                            <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+                                                <span class="badge ju-badge">{{ $eventTypeLabel }}</span>
+                                                <span class="badge bg-{{ $eventRequest->status_color }}">
+                                                    {{ ucwords(str_replace('_', ' ', $eventRequest->status)) }}
+                                                </span>
+                                                @if($eventRequest->event_id)
+                                                    <span class="badge bg-success">
+                                                        <i class="fas fa-check-circle me-1"></i>Published Event
+                                                    </span>
+                                                @endif
+                                            </div>
+                                            <h3 class="request-hero-title">{{ $eventRequest->title }}</h3>
+                                            <p class="request-hero-description">{{ $eventRequest->description }}</p>
 
-                                    @if($eventRequest->requested_image_url)
-                                    <div class="mt-3">
-                                        <h6 class="text-muted mb-2">Requested Event Image</h6>
-                                        <img src="{{ $eventRequest->requested_image_url }}"
-                                             alt="{{ $eventRequest->title }}"
-                                             class="img-fluid rounded border"
-                                             style="max-height: 220px; object-fit: cover;">
+                                            <div class="request-metrics">
+                                                <div class="metric-tile">
+                                                    <span class="metric-label">Start Date</span>
+                                                    <span class="metric-value">
+                                                        {{ $eventRequest->proposed_start_date?->format('M d, Y') ?? 'TBD' }}
+                                                    </span>
+                                                </div>
+                                                <div class="metric-tile">
+                                                    <span class="metric-label">End Date</span>
+                                                    <span class="metric-value">
+                                                        {{ $eventRequest->proposed_end_date?->format('M d, Y') ?? 'TBD' }}
+                                                    </span>
+                                                </div>
+                                                <div class="metric-tile">
+                                                    <span class="metric-label">Venue</span>
+                                                    <span class="metric-value">{{ $eventRequest->proposed_venue ?: 'To be assigned' }}</span>
+                                                </div>
+                                                <div class="metric-tile">
+                                                    <span class="metric-label">Expected Attendees</span>
+                                                    <span class="metric-value">
+                                                        {{ $eventRequest->expected_attendees ? number_format($eventRequest->expected_attendees) : 'Not set' }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                    @endif
                                 </div>
+                                @if($eventRequest->additional_requirements_text)
+                                    <div class="request-extra">
+                                        <h6 class="text-muted mb-2">Additional Requirements</h6>
+                                        <p class="mb-0">{{ $eventRequest->additional_requirements_text }}</p>
+                                    </div>
+                                @endif
                             </div>
                             
                             <!-- Organizer Information -->
@@ -222,7 +229,7 @@
                                         </form>
                                         @endif
                                         
-                                        @if(auth()->user()->hasRole('super-admin') || auth()->user()->hasRole('super-administrator') || auth()->user()->hasRole('administrator') || auth()->user()->hasRole('admin') || auth()->user()->isAdmin())
+                                        @if($isApprover)
                                             @if($eventRequest->isPending())
                                             <button type="button" class="btn btn-success w-100" 
                                                     onclick="approveEventRequest({{ $eventRequest->id }})">
@@ -263,7 +270,7 @@
                                             <div class="timeline-marker"></div>
                                             <div class="timeline-content">
                                                 <h6 class="mb-1">Request {{ ucfirst($eventRequest->status) }}</h6>
-                                                <p class="text-muted mb-0">{{ $eventRequest->reviewed_at->format('M d, Y h:i A') }}</p>
+                                                <p class="text-muted mb-0">{{ $eventRequest->reviewed_at?->format('M d, Y h:i A') ?? 'Pending timestamp' }}</p>
                                             </div>
                                         </div>
                                         @endif
@@ -320,6 +327,94 @@
 
 @push('styles')
 <style>
+.request-details-card {
+    border: 1px solid #e7eef7;
+    box-shadow: 0 12px 28px rgba(0, 39, 137, 0.08);
+}
+
+.request-hero-media {
+    position: relative;
+    height: 100%;
+    min-height: 320px;
+    background: linear-gradient(145deg, #0a1929, #0d2b4b);
+}
+
+.request-hero-image {
+    width: 100%;
+    height: 100%;
+    min-height: 320px;
+    object-fit: cover;
+}
+
+.request-hero-placeholder {
+    position: absolute;
+    inset: 0;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+}
+
+.request-hero-placeholder i {
+    font-size: 2rem;
+    opacity: 0.9;
+}
+
+.request-hero-content {
+    padding: 1.5rem;
+    background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+    height: 100%;
+}
+
+.request-hero-title {
+    font-weight: 800;
+    color: #0a1929;
+    margin-bottom: 0.75rem;
+}
+
+.request-hero-description {
+    color: #475569;
+    margin-bottom: 1rem;
+    line-height: 1.65;
+}
+
+.request-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.metric-tile {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.8rem;
+    padding: 0.8rem 0.9rem;
+}
+
+.metric-label {
+    display: block;
+    font-size: 0.78rem;
+    color: #64748b;
+    margin-bottom: 0.2rem;
+}
+
+.metric-value {
+    display: block;
+    color: #0f172a;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.request-extra {
+    border-top: 1px solid #edf2f7;
+    padding: 1rem 1.25rem 1.25rem;
+    background: #ffffff;
+}
+
 .timeline {
     position: relative;
     padding-left: 1.5rem;
@@ -357,6 +452,19 @@
 
 .timeline-content {
     padding-left: 0.5rem;
+}
+
+@media (max-width: 991.98px) {
+    .request-hero-media,
+    .request-hero-image {
+        min-height: 260px;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .request-metrics {
+        grid-template-columns: 1fr;
+    }
 }
 </style>
 @endpush
