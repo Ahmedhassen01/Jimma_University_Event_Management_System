@@ -1,6 +1,6 @@
 # Jimma University Event Management System (JU-EMS)
 
-JU-EMS is a role-based Laravel 12 web application for managing university events, requests, announcements, notifications, registrations, and feedback.
+JU-EMS is a role-based Laravel 12 web application for managing university events, announcements, notifications and feedback.
 
 ## 1) Core Business Logic
 
@@ -78,7 +78,7 @@ Configure database in `.env`:
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=intern_ems
+DB_DATABASE=your_database_name
 DB_USERNAME=your_user
 DB_PASSWORD=your_password
 ```
@@ -126,7 +126,7 @@ php artisan queue:work
 npm run dev
 ```
 
-## 5) Seeded Demo Accounts
+## 5) Seeded Demo Accounts, also we seeded some sample events
 
 After `php artisan migrate --seed`, default users include:
 
@@ -135,83 +135,3 @@ After `php artisan migrate --seed`, default users include:
 - Event Manager: `events@ju.edu.et` / `password123`
 - Faculty: `alemayehu@ju.edu.et` / `password123`
 - Student: `student@ju.edu.et` / `password123`
-
-## 6) Regression / Smoke Test Commands
-
-Run these before sharing with team:
-
-```bash
-php artisan about
-php artisan migrate:status
-php artisan route:list
-php artisan test
-```
-
-Expected now:
-- `php artisan test` passes (basic smoke tests).
-- Routes and migrations load successfully.
-
-## 7) What To Check Manually (High Value)
-
-1. Register a new user and verify role is `guest`.
-2. Login/logout across roles.
-3. Event request create -> manager review -> admin approve/reject.
-4. Event registration and participant flow.
-5. Notification dropdown behavior and links.
-6. Feedback submit/review/respond flow.
-7. Deactivate account and verify login is blocked.
-8. Reactivate inactive user from admin side and verify login works again.
-
-## 8) Important Files
-
-- Auth logic: `app/Http/Controllers/AuthController.php`
-- User account management: `app/Http/Controllers/UserController.php`
-- Profile security/deactivation: `app/Http/Controllers/ProfileController.php`
-- Event request workflow: `app/Http/Controllers/EventRequestController.php`
-- Notifications: `app/Http/Controllers/NotificationController.php`
-- Routes: `routes/web.php`
-- Login/Register UI: `resources/views/auth/login.blade.php`, `resources/views/auth/register.blade.php`
-
-## 9) Share to Team (GitHub)
-
-If this folder is not yet a git repo, initialize and push:
-
-```bash
-git init
-git add .
-git commit -m "Initial JU-EMS project handoff"
-git branch -M main
-git remote add origin <YOUR_TEAM_REPO_URL>
-git push -u origin main
-```
-
-If already connected to a repo:
-
-```bash
-git add .
-git commit -m "Project updates + README + regression checks"
-git push
-```
-
-Your team can then:
-- Clone: `git clone <YOUR_TEAM_REPO_URL>`
-- Or download ZIP from GitHub and follow section 4.
-
-## 10) Troubleshooting
-
-### `npm` blocked in PowerShell
-Use `npm.cmd` commands or run terminal as Administrator.
-
-### `Error: spawn EPERM` during Vite build
-Usually Windows permission/AV policy issue. Try:
-- Close editors/terminals locking files.
-- Run terminal as Administrator.
-- Exclude project directory from antivirus scanning.
-- Reinstall dependencies (`rm -r node_modules`, `npm install`) and rebuild.
-
-### 403 authorization pages for valid role
-Re-check role assignment and permission mapping in seeded roles/permissions.
-
----
-
-If you want, I can next add a `DEPLOYMENT.md` for production server setup (Nginx/Apache, queue supervisor, env hardening, and backup steps).

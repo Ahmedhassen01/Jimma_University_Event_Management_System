@@ -203,9 +203,9 @@
                         </button>
                     </form>
 
-                    <div class="auth-note mb-3">
+                    {{-- <div class="auth-note mb-3">
                         New accounts start as <strong>Guest</strong>. A Super Administrator can assign Student, Faculty, Event Manager, or other roles later.
-                    </div>
+                    </div> --}}
 
                     <p class="mb-0 text-muted text-center">
                         No account yet?

@@ -2015,7 +2015,7 @@
                             <i class="fas fa-sign-in-alt"></i> Login
                         </a>
                         @endif
-                        <a href="{{ route('events.guest.show', $event) }}" class="premium-btn premium-btn-icon premium-btn-sm hover-rotate-icon" title="View Details">
+                        <a href="{{ route('events.guest.show', $event->slug) }}" class="premium-btn premium-btn-icon premium-btn-sm hover-rotate-icon" title="View Details">
                             <i class="fas fa-arrow-right"></i>
                         </a>
                     </div>

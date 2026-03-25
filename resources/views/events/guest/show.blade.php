@@ -1636,8 +1636,8 @@
                             Register
                         </a>
                         @else
-                        <span class="action-btn" style="background: var(--ju-gray-400); cursor: not-allowed; opacity: 0.8; color: white;">
-                            <i class="fas fa-ban"></i>
+                        <span class="action-btn p-4" style="background: var(--ju-gray-400); cursor: not-allowed; opacity: 0.8; color: rgb(138, 35, 35);">
+                            <i class="fas fa-user-plus"></i>
                             Registration Closed
                         </span>
                         @endif

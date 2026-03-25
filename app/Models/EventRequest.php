@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Route;
 
 class EventRequest extends Model
 {
@@ -193,7 +193,11 @@ public function getRequestedImageUrlAttribute(): ?string
         return null;
     }
 
-    return Storage::url($path);
+    if (!Route::has('event-requests.image')) {
+        return asset('storage/' . ltrim($path, '/'));
+    }
+
+    return route('event-requests.image', ['eventRequest' => $this->id]);
 }
 
 }

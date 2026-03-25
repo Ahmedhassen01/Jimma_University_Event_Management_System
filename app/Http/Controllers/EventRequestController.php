@@ -265,6 +265,91 @@ class EventRequestController extends Controller
     }
 
     /**
+     * Serve an event-request image directly from storage.
+     * This avoids dependency on the public/storage symlink.
+     */
+    public function image(EventRequest $eventRequest)
+    {
+        if (
+            Auth::id() !== $eventRequest->user_id &&
+            !$this->isApprover(Auth::user()) &&
+            !$this->isEventManager(Auth::user())
+        ) {
+            abort(403, 'You are not authorized to view this event request image.');
+        }
+
+        $additionalRequirements = $this->parseAdditionalRequirementsPayload($eventRequest->additional_requirements);
+        $rawPath = $additionalRequirements['event_image'] ?? null;
+
+        if (!$rawPath) {
+            if ($eventRequest->event && $eventRequest->event->image) {
+                return redirect()->route('events.image', ['event' => $eventRequest->event->id]);
+            }
+
+            $defaultPath = public_path('images/default-event.jpg');
+            if (file_exists($defaultPath)) {
+                return response()->file($defaultPath);
+            }
+
+            abort(404);
+        }
+
+        $normalized = ltrim(str_replace('\\', '/', (string) $rawPath), '/');
+        if (filter_var($normalized, FILTER_VALIDATE_URL)) {
+            return redirect()->away($normalized);
+        }
+
+        if (str_starts_with($normalized, 'storage/')) {
+            $normalized = substr($normalized, strlen('storage/'));
+        } elseif (str_starts_with($normalized, '/storage/')) {
+            $normalized = substr($normalized, strlen('/storage/'));
+        }
+
+        if (str_starts_with($normalized, 'public/')) {
+            $normalized = substr($normalized, strlen('public/'));
+        }
+
+        $candidates = array_values(array_unique(array_filter([
+            $normalized,
+            'events/' . basename($normalized),
+            basename($normalized),
+        ])));
+
+        foreach ($candidates as $path) {
+            if (Storage::disk('public')->exists($path)) {
+                return Storage::disk('public')->response($path);
+            }
+        }
+
+        $publicCandidates = array_values(array_unique(array_filter([
+            public_path($normalized),
+            public_path('events/' . basename($normalized)),
+            public_path('uploads/events/' . basename($normalized)),
+            public_path('storage/' . $normalized),
+            public_path('storage/events/' . basename($normalized)),
+            storage_path('app/public/' . $normalized),
+            storage_path('app/public/events/' . basename($normalized)),
+        ])));
+
+        foreach ($publicCandidates as $path) {
+            if (file_exists($path)) {
+                return response()->file($path);
+            }
+        }
+
+        if ($eventRequest->event && $eventRequest->event->image) {
+            return redirect()->route('events.image', ['event' => $eventRequest->event->id]);
+        }
+
+        $defaultPath = public_path('images/default-event.jpg');
+        if (file_exists($defaultPath)) {
+            return response()->file($defaultPath);
+        }
+
+        abort(404);
+    }
+
+    /**
      * Show the form for editing the specified event request
      */
     public function edit(EventRequest $eventRequest)

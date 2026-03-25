@@ -169,6 +169,8 @@ Route::middleware(['auth', 'active.user'])->group(function () {
         ->name('event-requests.my-requests');
     
     Route::resource('event-requests', EventRequestController::class);
+    Route::get('/event-requests/{eventRequest}/image', [EventRequestController::class, 'image'])
+        ->name('event-requests.image');
 
     Route::post('/event-requests/{eventRequest}/cancel', [EventRequestController::class, 'cancel'])
         ->name('event-requests.cancel');
