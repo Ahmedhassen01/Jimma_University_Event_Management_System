@@ -25,6 +25,7 @@ class EventRequest extends Model
         'reviewed_by',
         'review_notes',
         'reviewed_at',
+        'manager_viewed_at',
         'event_id',
         'venue_id',
     'campus_id',
@@ -36,6 +37,7 @@ class EventRequest extends Model
         'proposed_start_date' => 'datetime',
         'proposed_end_date' => 'datetime',
         'reviewed_at' => 'datetime',
+        'manager_viewed_at' => 'datetime',
     ];
 
     // Relationships

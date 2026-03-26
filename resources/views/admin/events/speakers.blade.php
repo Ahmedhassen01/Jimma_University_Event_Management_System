@@ -197,8 +197,10 @@
                                                                     </small>
                                                                 @endif
                                                             </div>
-                                                            <button class="btn btn-sm assign-speaker-btn" 
+                                                            <button type="button"
+                                                                    class="btn btn-sm assign-speaker-btn" 
                                                                     data-speaker-id="{{ $speaker->id }}"
+                                                                    data-speaker-name="{{ $speaker->full_name }}"
                                                                     style="background-color: #003366; color: white;">
                                                                 <i class="fas fa-plus me-1"></i>Assign
                                                             </button>
@@ -473,7 +475,7 @@
         // Initialize Sortable for drag and drop reordering
         const assignedSpeakersList = document.getElementById('assigned-speakers-list');
         
-        if (assignedSpeakersList) {
+        if (assignedSpeakersList && typeof Sortable !== 'undefined') {
             new Sortable(assignedSpeakersList, {
                 animation: 150,
                 handle: '.drag-handle',
@@ -484,6 +486,8 @@
                     document.getElementById('saveOrderBtn')?.classList.remove('d-none');
                 }
             });
+        } else if (assignedSpeakersList && typeof Sortable === 'undefined') {
+            console.warn('SortableJS failed to load. Drag/drop reordering is disabled.');
         }
         
         // Save order
@@ -536,19 +540,58 @@
             });
         }
         
+        const assignSpeakerModalEl = document.getElementById('assignSpeakerModal');
+        const editSpeakerModalEl = document.getElementById('editSpeakerModal');
+        const assignSpeakerForm = document.getElementById('assignSpeakerForm');
+
+        [assignSpeakerModalEl, editSpeakerModalEl].forEach((modalEl) => {
+            if (modalEl && modalEl.parentElement !== document.body) {
+                document.body.appendChild(modalEl);
+            }
+        });
+
+        function cleanupModalArtifacts() {
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('padding-right');
+            document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+        }
+
         // Assign speaker
         document.querySelectorAll('.assign-speaker-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
                 const speakerId = this.dataset.speakerId;
-                const speakerCard = this.closest('.available-speaker');
-                const speakerName = speakerCard.querySelector('h6').textContent;
+                const speakerName = this.dataset.speakerName || 'Selected Speaker';
                 
                 document.getElementById('assign_speaker_id').value = speakerId;
                 document.getElementById('assign_speaker_name').value = speakerName;
-                
-                new bootstrap.Modal(document.getElementById('assignSpeakerModal')).show();
+
+                if (window.bootstrap && assignSpeakerModalEl) {
+                    bootstrap.Modal.getOrCreateInstance(assignSpeakerModalEl).show();
+                } else {
+                    showToast('Modal could not be opened. Please refresh the page and try again.', 'error');
+                }
             });
         });
+
+        if (assignSpeakerForm) {
+            assignSpeakerForm.addEventListener('submit', function(e) {
+                const speakerId = document.getElementById('assign_speaker_id')?.value;
+                if (!speakerId) {
+                    e.preventDefault();
+                    showToast('Please select a speaker to assign.', 'warning');
+                    return;
+                }
+
+                const submitBtn = assignSpeakerForm.querySelector('button[type=\"submit\"]');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class=\"fas fa-spinner fa-spin me-2\"></i>Assigning...';
+                }
+            });
+        }
         
         // Edit speaker
         document.querySelectorAll('.edit-speaker-btn').forEach(btn => {
@@ -578,7 +621,20 @@
                 const form = document.getElementById('editSpeakerForm');
                 form.action = `{{ route('admin.events.speakers.update', [$event, 'SPEAKER_ID']) }}`.replace('SPEAKER_ID', speakerId);
                 
-                new bootstrap.Modal(document.getElementById('editSpeakerModal')).show();
+                if (window.bootstrap && editSpeakerModalEl) {
+                    bootstrap.Modal.getOrCreateInstance(editSpeakerModalEl).show();
+                }
+            });
+        });
+
+        // Defensive cleanup in case a modal backdrop gets stuck.
+        [assignSpeakerModalEl, editSpeakerModalEl].forEach(modalEl => {
+            if (!modalEl) {
+                return;
+            }
+
+            modalEl.addEventListener('hidden.bs.modal', () => {
+                cleanupModalArtifacts();
             });
         });
         

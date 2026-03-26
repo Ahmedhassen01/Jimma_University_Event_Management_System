@@ -155,6 +155,38 @@ class EventController extends Controller
             'speakers.*.is_keynote' => 'nullable|boolean',
         ]);
 
+        $imageFile = $request->file('image');
+        unset($validated['image']);
+
+        $validated['is_featured'] = $request->boolean('is_featured');
+        $validated['is_public'] = $request->boolean('is_public', true);
+        $validated['requires_registration'] = $request->boolean('requires_registration');
+        if (!$validated['requires_registration']) {
+            $validated['registration_link'] = null;
+        }
+
+        $speakerData = collect($request->input('speakers', []))
+            ->filter(fn ($speaker) => !empty($speaker['speaker_id']))
+            ->map(function ($speaker) {
+                return [
+                    'speaker_id' => (int) $speaker['speaker_id'],
+                    'session_title' => $speaker['session_title'] ?? null,
+                    'session_time' => $speaker['session_time'] ?? null,
+                    'session_duration' => isset($speaker['session_duration']) && $speaker['session_duration'] !== ''
+                        ? (int) $speaker['session_duration']
+                        : null,
+                    'session_description' => $speaker['session_description'] ?? null,
+                    'order' => isset($speaker['order']) && $speaker['order'] !== ''
+                        ? (int) $speaker['order']
+                        : 0,
+                    'is_keynote' => !empty($speaker['is_keynote']),
+                    'is_moderator' => !empty($speaker['is_moderator']),
+                    'is_panelist' => !empty($speaker['is_panelist']),
+                ];
+            })
+            ->values()
+            ->all();
+
         // Generate slug
         $slug = Str::slug($validated['title']);
         $counter = 1;
@@ -192,15 +224,15 @@ class EventController extends Controller
         if (auth()->user()->hasRole('event-manager')) {
             $imagePath = null;
 
-            if ($request->hasFile('image')) {
+            if ($imageFile) {
                 try {
-                    $imagePath = $request->file('image')->store('events', 'public');
+                    $imagePath = $imageFile->store('events', 'public');
                 } catch (\Exception $e) {
                     Log::error('Event request image upload failed: ' . $e->getMessage());
                 }
             }
 
-            $this->createApprovalRequestFromEventData($validated, $imagePath);
+            $this->createApprovalRequestFromEventData($validated, $imagePath, $speakerData);
 
             return redirect()->route('event-requests.my-requests')
                 ->with('success', 'Event submitted for approval successfully. It is now pending administrator review.');
@@ -210,9 +242,9 @@ class EventController extends Controller
         $event = Event::create($validated);
 
         // Handle image upload AFTER event is created
-        if ($request->hasFile('image')) {
+        if ($imageFile) {
             try {
-                $event->uploadImage($request->file('image'));
+                $event->uploadImage($imageFile);
                 Log::info('Image uploaded for new event: ' . $event->id);
             } catch (\Exception $e) {
                 Log::error('Image upload failed: ' . $e->getMessage());
@@ -220,14 +252,8 @@ class EventController extends Controller
         }
 
         // Handle speakers
-        if ($request->has('speakers') && is_array($request->speakers)) {
-            $speakerData = array_filter($request->speakers, function ($speaker) {
-                return !empty($speaker['speaker_id']);
-            });
-            
-            if (!empty($speakerData)) {
-                $event->syncSpeakers($speakerData);
-            }
+        if (!empty($speakerData)) {
+            $event->syncSpeakers($speakerData);
         }
 
         $this->sendEventLifecycleNotification($event, 'created');
@@ -316,6 +342,9 @@ class EventController extends Controller
             'speakers.*.is_keynote' => 'nullable|boolean',
         ]);
 
+        $imageFile = $request->file('image');
+        unset($validated['image']);
+
         // Handle slug update if title changed
         if ($event->title !== $validated['title']) {
             $slug = Str::slug($validated['title']);
@@ -342,9 +371,9 @@ class EventController extends Controller
         }
 
         // Handle new image upload
-        if ($request->hasFile('image')) {
+        if ($imageFile) {
             try {
-                $event->uploadImage($request->file('image'));
+                $event->uploadImage($imageFile);
                 Log::info('Image updated for event: ' . $event->id);
             } catch (\Exception $e) {
                 Log::error('Image update failed: ' . $e->getMessage());
@@ -628,16 +657,31 @@ class EventController extends Controller
         $notification->users()->attach($attachData);
     }
 
-    protected function createApprovalRequestFromEventData(array $validated, ?string $imagePath = null): EventRequest
+    protected function createApprovalRequestFromEventData(array $validated, ?string $imagePath = null, array $speakerData = []): EventRequest
     {
         $additionalRequirements = [];
 
-        if (!empty($validated['additional_venue_info'])) {
-            $additionalRequirements['additional_venue_info'] = $validated['additional_venue_info'];
+        $payloadKeys = [
+            'additional_venue_info',
+            'registration_link',
+            'requires_registration',
+            'is_public',
+            'is_featured',
+            'tags',
+        ];
+
+        foreach ($payloadKeys as $key) {
+            if (array_key_exists($key, $validated)) {
+                $additionalRequirements[$key] = $validated[$key];
+            }
         }
 
         if (!empty($imagePath)) {
             $additionalRequirements['event_image'] = $imagePath;
+        }
+
+        if (!empty($speakerData)) {
+            $additionalRequirements['speakers'] = $speakerData;
         }
 
         return EventRequest::create([

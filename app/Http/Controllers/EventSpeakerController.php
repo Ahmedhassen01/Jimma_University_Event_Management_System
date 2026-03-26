@@ -40,14 +40,56 @@ class EventSpeakerController extends Controller
         ]);
 
         if ($validator->fails()) {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
             return redirect()->back()
                 ->withErrors($validator)
                 ->withInput();
         }
 
-        $event->syncSpeakers($request->speakers);
+        $nextOrder = (int) $event->speakers()->max('event_speaker.order') + 1;
+        $syncData = [];
 
-        return redirect()->route('admin.events.show', $event)
+        foreach ($request->input('speakers', []) as $speaker) {
+            $speakerId = isset($speaker['speaker_id']) ? (int) $speaker['speaker_id'] : null;
+            if (!$speakerId) {
+                continue;
+            }
+
+            $syncData[$speakerId] = [
+                'session_title' => $speaker['session_title'] ?? null,
+                'session_time' => $speaker['session_time'] ?? null,
+                'session_duration' => isset($speaker['session_duration']) && $speaker['session_duration'] !== ''
+                    ? (int) $speaker['session_duration']
+                    : null,
+                'session_description' => $speaker['session_description'] ?? null,
+                'order' => isset($speaker['order']) && $speaker['order'] !== ''
+                    ? (int) $speaker['order']
+                    : $nextOrder++,
+                'is_keynote' => !empty($speaker['is_keynote']),
+                'is_moderator' => !empty($speaker['is_moderator']),
+                'is_panelist' => !empty($speaker['is_panelist']),
+            ];
+        }
+
+        if (!empty($syncData)) {
+            // Add/update selected speakers while keeping already assigned ones.
+            $event->speakers()->syncWithoutDetaching($syncData);
+        }
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Speakers assigned successfully!',
+            ]);
+        }
+
+        return redirect()->route('admin.events.speakers.manage', $event)
             ->with('success', 'Speakers assigned successfully!');
     }
 
@@ -78,6 +120,12 @@ class EventSpeakerController extends Controller
         ]);
 
         if ($validator->fails()) {
+            if (!$request->ajax() && !$request->wantsJson()) {
+                return redirect()->back()
+                    ->withErrors($validator)
+                    ->withInput();
+            }
+
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
@@ -92,10 +140,15 @@ class EventSpeakerController extends Controller
             'updated_at' => now(),
         ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Speaker details updated successfully.'
-        ]);
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Speaker details updated successfully.'
+            ]);
+        }
+
+        return redirect()->route('admin.events.speakers.manage', $event)
+            ->with('success', 'Speaker details updated successfully.');
     }
 
     /**

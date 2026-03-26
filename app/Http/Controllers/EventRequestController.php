@@ -258,6 +258,17 @@ class EventRequestController extends Controller
         ) {
             abort(403, 'You are not authorized to view this event request.');
         }
+
+        // Mark manager-review requests as seen once the event manager opens them.
+        if (
+            $this->isEventManager(Auth::user()) &&
+            $eventRequest->status === 'manager_review' &&
+            is_null($eventRequest->manager_viewed_at)
+        ) {
+            $eventRequest->forceFill([
+                'manager_viewed_at' => now(),
+            ])->save();
+        }
         
         $eventRequest->load(['user', 'reviewer', 'event', 'venueRelation', 'campusRelation', 'buildingRelation']);
         
@@ -672,18 +683,39 @@ class EventRequestController extends Controller
 
         $additionalRequirements = $this->parseAdditionalRequirementsPayload($eventRequest->additional_requirements);
         $imagePath = $additionalRequirements['event_image'] ?? null;
-        
-        return Event::create([
+        $speakerData = collect($additionalRequirements['speakers'] ?? [])
+            ->filter(fn ($speaker) => !empty($speaker['speaker_id']))
+            ->map(function ($speaker) {
+                return [
+                    'speaker_id' => (int) $speaker['speaker_id'],
+                    'session_title' => $speaker['session_title'] ?? null,
+                    'session_time' => $speaker['session_time'] ?? null,
+                    'session_duration' => isset($speaker['session_duration']) && $speaker['session_duration'] !== ''
+                        ? (int) $speaker['session_duration']
+                        : null,
+                    'session_description' => $speaker['session_description'] ?? null,
+                    'order' => isset($speaker['order']) && $speaker['order'] !== ''
+                        ? (int) $speaker['order']
+                        : 0,
+                    'is_keynote' => !empty($speaker['is_keynote']),
+                    'is_moderator' => !empty($speaker['is_moderator']),
+                    'is_panelist' => !empty($speaker['is_panelist']),
+                ];
+            })
+            ->values()
+            ->all();
+
+        $event = Event::create([
             'title' => $eventRequest->title,
             'slug' => $slug,
             'description' => $eventRequest->description,
-            'short_description' => Str::limit($eventRequest->description, 200),
             'start_date' => $eventRequest->proposed_start_date,
             'end_date' => $eventRequest->proposed_end_date,
             'campus_id' => $eventRequest->campus_id,
             'building_id' => $eventRequest->building_id,
             'venue_id' => $eventRequest->venue_id,
             'campus' => $eventRequest->proposed_campus,
+            'building' => $eventRequest->buildingRelation?->name,
             'venue' => $eventRequest->proposed_venue,
             'event_type' => $eventRequest->event_type,
             'organizer' => $eventRequest->organizer_name,
@@ -691,11 +723,28 @@ class EventRequestController extends Controller
             'contact_phone' => $eventRequest->organizer_phone,
             'max_attendees' => $eventRequest->expected_attendees,
             'registered_attendees' => 0,
-            'is_featured' => false,
-            'is_public' => true,
-            'requires_registration' => true,
+            'is_featured' => (bool) ($additionalRequirements['is_featured'] ?? false),
+            'is_public' => array_key_exists('is_public', $additionalRequirements)
+                ? (bool) $additionalRequirements['is_public']
+                : true,
+            'requires_registration' => array_key_exists('requires_registration', $additionalRequirements)
+                ? (bool) $additionalRequirements['requires_registration']
+                : true,
+            'registration_link' => $additionalRequirements['registration_link'] ?? null,
+            'tags' => isset($additionalRequirements['tags']) && is_array($additionalRequirements['tags'])
+                ? $additionalRequirements['tags']
+                : null,
+            'additional_venue_info' => isset($additionalRequirements['additional_venue_info']) && is_array($additionalRequirements['additional_venue_info'])
+                ? $additionalRequirements['additional_venue_info']
+                : null,
             'image' => $imagePath,
         ]);
+
+        if (!empty($speakerData)) {
+            $event->syncSpeakers($speakerData);
+        }
+
+        return $event;
     }
 
     private function parseAdditionalRequirementsPayload(?string $value): array

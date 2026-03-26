@@ -2592,6 +2592,8 @@
             $sidebarUser->hasRole('admin') ||
             $sidebarUser->isAdmin()
         );
+        $isEventManagerUser = $sidebarUser && $sidebarUser->hasRole('event-manager');
+        $showTopEventRequestLinks = $sidebarUser && !$isApproverUser && !$isEventManagerUser;
         @endphp
         <!-- Sidebar - ROYAL BLUE WITH GOLD ACCENTS -->
         <nav class="ju-sidebar" id="mainSidebar">
@@ -2648,18 +2650,8 @@
                     </a>
                 </li>
 
-                <!-- Create Event Request -->
-                @if(auth()->check())
-                <li class="menu-item">
-                    <a href="{{ route('event-requests.create') }}"
-                        class="menu-link hover-slide-up {{ request()->routeIs('event-requests.create') ? 'active' : '' }}">
-                        <i class="menu-icon fas fa-plus-circle"></i>
-                        <span class="menu-title">Create Event Request</span>
-                    </a>
-                </li>
-
-                <!-- My Event Requests -->
                 @if($isApproverUser)
+                <!-- Event Requests Review -->
                 <li class="menu-item">
                     <a href="{{ route('event-requests.index') }}"
                         class="menu-link hover-slide-up {{ request()->routeIs('event-requests.index') ? 'active' : '' }}">
@@ -2673,29 +2665,51 @@
                         @endif
                     </a>
                 </li>
-                @else
+                @elseif($isEventManagerUser)
+                <!-- Event Scheduling Queue -->
                 <li class="menu-item">
                     <a href="{{ route('event-requests.my-requests') }}"
                         class="menu-link hover-slide-up {{ request()->routeIs('event-requests.my-requests') ? 'active' : '' }}">
                         <i class="menu-icon fas fa-clipboard-list"></i>
-                        <span class="menu-title">{{ auth()->user() && auth()->user()->hasRole('event-manager') ? 'Event Scheduling Queue' : 'My Event Requests' }}</span>
+                        <span class="menu-title">Event Scheduling Queue</span>
                         @php
-                        if (auth()->user() && auth()->user()->hasRole('event-manager')) {
-                            $myPendingRequestsCount = \App\Models\EventRequest::whereIn('status', ['manager_review', 'pending'])->count();
-                        } else {
-                            $myPendingRequestsCount = auth()->user()
-                                ? \App\Models\EventRequest::where('user_id', auth()->id())
-                                    ->whereIn('status', ['manager_review', 'pending'])
-                                    ->count()
-                                : 0;
-                        }
+                        $newManagerQueueCount = \App\Models\EventRequest::where('status', 'manager_review')
+                            ->whereNull('manager_viewed_at')
+                            ->count();
+                        @endphp
+                        @if($newManagerQueueCount > 0)
+                        <span class="menu-badge hover-pulse">{{ $newManagerQueueCount }}</span>
+                        @endif
+                    </a>
+                </li>
+                @elseif($showTopEventRequestLinks)
+                <!-- Create Event Request -->
+                <li class="menu-item">
+                    <a href="{{ route('event-requests.create') }}"
+                        class="menu-link hover-slide-up {{ request()->routeIs('event-requests.create') ? 'active' : '' }}">
+                        <i class="menu-icon fas fa-plus-circle"></i>
+                        <span class="menu-title">Create Event Request</span>
+                    </a>
+                </li>
+
+                <!-- My Event Requests -->
+                <li class="menu-item">
+                    <a href="{{ route('event-requests.my-requests') }}"
+                        class="menu-link hover-slide-up {{ request()->routeIs('event-requests.my-requests') ? 'active' : '' }}">
+                        <i class="menu-icon fas fa-clipboard-list"></i>
+                        <span class="menu-title">My Event Requests</span>
+                        @php
+                        $myPendingRequestsCount = auth()->user()
+                            ? \App\Models\EventRequest::where('user_id', auth()->id())
+                                ->whereIn('status', ['manager_review', 'pending'])
+                                ->count()
+                            : 0;
                         @endphp
                         @if($myPendingRequestsCount > 0)
                         <span class="menu-badge hover-pulse">{{ $myPendingRequestsCount }}</span>
                         @endif
                     </a>
                 </li>
-                @endif
                 @endif
 
                 <!-- FEEDBACK SECTION -->
@@ -2760,8 +2774,15 @@
                 </li>
 
                 <!-- ADMINISTRATION SECTION -->
-                @if(!$isStudentUser && !$isFacultyUser && auth()->user()->hasAnyPermission(['manage_events', 'manage_venues', 'manage_users',
-                'view_event_requests', 'manage_feedback', 'manage_announcements']))
+                @if(
+                    !$isStudentUser &&
+                    !$isFacultyUser &&
+                    (
+                        auth()->user()->hasAnyPermission(['manage_events', 'manage_venues', 'manage_users',
+                        'view_event_requests', 'manage_feedback', 'manage_announcements']) ||
+                        auth()->user()->hasRole('event-manager')
+                    )
+                )
                 <li class="menu-header">Administration</li>
 
                 <!-- VENUE MANAGEMENT -->
@@ -2807,6 +2828,7 @@
                 @if(auth()->user()->hasPermission('manage_events') ||
                 auth()->user()->hasPermission('view_event_requests') ||
                 auth()->user()->hasPermission('manage_speakers') ||
+                auth()->user()->hasRole('event-manager') ||
                 $isApproverUser)
                 <li class="menu-item">
                     <a class="menu-link menu-collapse hover-slide-up {{ request()->routeIs('admin.events.*') || request()->routeIs('event-requests.index') || request()->routeIs('speakers.*') || request()->routeIs('admin.events.speakers.*') ? '' : 'collapsed' }}"
@@ -2822,7 +2844,8 @@
 
                             <!-- Events Management Section -->
                             @if(auth()->user()->hasPermission('manage_events') ||
-                            auth()->user()->hasPermission('create_events'))
+                            auth()->user()->hasPermission('create_events') ||
+                            auth()->user()->hasRole('event-manager'))
                             <li class="nav-item nav-section-title">
                                 <span class="nav-section-text">Events</span>
                             </li>
@@ -2844,7 +2867,11 @@
                             </li>
                             @endif
 
-                            @if(auth()->user()->hasPermission('create_events') && !auth()->user()->hasRole('event-manager'))
+                            @if(
+                                auth()->user()->hasPermission('create_events') ||
+                                auth()->user()->hasRole('event-manager') ||
+                                $isApproverUser
+                            )
                             <li class="nav-item">
                                 <a class="nav-link hover-border {{ request()->routeIs('admin.events.create') ? 'active' : '' }}"
                                     href="{{ route('admin.events.create') }}">
